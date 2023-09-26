@@ -1,0 +1,63 @@
+version: '3.8'
+
+networks:
+  es-net:
+
+
+volumes:
+  es_volume:
+  es_config:
+
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
+    container_name: elasticsearch
+    environment:
+      - license=${LICENSE}
+      - node.name=es-node
+      - cluster.name=${CLUSTER_NAME}
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enrollment.enabled=true
+    ports:
+      - ${ES_PORT}:9200
+    volumes:
+      - es_volume:/usr/share/elasticsearch/data
+    networks:
+      - es-net
+
+  enterprise-search:
+    image: docker.elastic.co/enterprise-search/enterprise-search:${STACK_VERSION}
+    ports:
+      - ${ENTERPRISE_SEARCH_PORT}:3002
+    volumes:
+      - es_config:/usr/share/enterprise-search/es-config:ro
+    environment:
+      - secret_management.encryption_keys=[${ENCRYPTION_KEYS}]
+      - allow_es_settings_modification=true
+      - kibana.external_url=http://kibana:5601
+      - elasticsearch.host=http://elasticsearch:9200
+      - elasticsearch.username=elastic
+      - elasticsearch.password=${ELASTIC_PASSWORD}
+    networks:
+      - es-net
+    depends_on:
+      - elasticsearch
+      - kibana
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    container_name: kibana
+    ports:
+      - 80:5601
+    environment:
+      - ELASTICSEARCH_URL=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
+      - ENTERPRISESEARCH_HOST=http://enterprisesearch:${ENTERPRISE_SEARCH_PORT}
+    networks:
+      - es-net
+    depends_on:
+      - elasticsearch
+    restart: "unless-stopped"
